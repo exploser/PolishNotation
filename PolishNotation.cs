@@ -1,6 +1,6 @@
 /*
  *   PolishNotation.cs: implements reverse Polish notation for reading and handling simple math expressions.
- *   Copyright (C) 2015  Pavel Vasilev
+ *   Copyright (C) 2014-2015  Pavel Vasilev
  *
  *   This program is free software: you can redistribute it and/or modify
  *   it under the terms of the GNU General Public License as published by
@@ -18,32 +18,26 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Windows.Forms;
 
 namespace Util
 {
 	class PolishNotation
 	{
-
 		private static char[] operators = { '+', '-', '*', '/', '^', '(', ')' };
 		private static string[] functions = { "sin", "cos", "exp", "abs", "log", "sgn", "erf", "sqrt", "sinh", "cosh", "arcsin", "arccos" };
-		private string contents;
+		private string contents = "";
 		public string analytic = "";
-		private int _calcs = 0;
+		private uint calcs = 0;
 
 		int variables = 0;
 
-		
-
-		public int CalculationsMade
+		public uint CalculationsMade
 		{
 			get
 			{
-				return _calcs;
+				return calcs;
 			}
 		}
 
@@ -51,18 +45,19 @@ namespace Util
 		{
 			input = input.Trim().Replace(" ", "");
 			StringBuilder sb = new StringBuilder();
-			StringBuilder tmp = new StringBuilder();
+			StringBuilder buf = new StringBuilder();
 			string function_buffer = "";
 			Stack<string> stack = new Stack<string>();
+
 			for (int i = 0; i < input.Length; i++)
 			{
 				#region operands
 				if (operators.Any(o => o == input[i]))
 				{
-					if (tmp.Length > 0)
+					if (buf.Length > 0)
 					{
-						sb.Append(tmp + " ");
-						tmp.Clear();
+						sb.Append(buf + " ");
+						buf.Clear();
 					}
 					if (input[i] == '+' || input[i] == '-')
 					{
@@ -96,61 +91,43 @@ namespace Util
 
 				}
 				#endregion
+
 				#region functions
 				else if (functions.Reverse().Any(o => // some cruel lambda shit
 				{
-					try
-					{
-						if (o == input.Substring(i, o.Length))
+						try
 						{
-							function_buffer = o;
-							return true;
+							if (o == input.Substring(i, o.Length))
+							{
+								function_buffer = o;
+								return true;
+							}
+							else
+								return false;
 						}
-						else
+						catch
+						{
 							return false;
+						}
 					}
-					catch
-					{
-						return false;
-					}
-				}
 					) && i < input.Length - function_buffer.Length)
 				{
-					int braces = 0;
-					for (int j = i + function_buffer.Length; j < input.Length; j++)
-					{
-						if (input[j] == '(')
-						{
-							braces++;
-							if (braces == 1)
-								continue;
-						}
-						if (input[j] == ')')
-							braces--;
-						if (braces > 0)
-							tmp.Append(input[j]);
-						else
-						{
-							sb.Append(PolishNotation.FromEquation(tmp.ToString()));
-							tmp.Clear();
-							stack.Push(input.Substring(i, function_buffer.Length));
-							i = j;
-							break;
-						}
-					}
+					stack.Push(function_buffer);
+					i += function_buffer.Length - 1;
 				}
 				#endregion
 
 				else
 				{
-					tmp.Append(input[i]);
+					buf.Append(input[i]);
 				}
+
 				if (i == input.Length - 1)
 				{
-					if (tmp.Length > 0)
+					if (buf.Length > 0)
 					{
-						sb.Append(tmp + " ");
-						tmp.Clear();
+						sb.Append(buf + " ");
+						buf.Clear();
 					}
 
 					while (stack.Count > 0)
@@ -168,7 +145,7 @@ namespace Util
 
 		public double Eval(double x = 0, double y = 0, double z = 0)
 		{
-			_calcs++;
+			calcs++;
 			Stack<double> stack = new Stack<double>();
 			string[] symbols = contents.TrimEnd().Split(' ');
 			for (int i = 0; i < symbols.Count(); i++)
@@ -179,21 +156,25 @@ namespace Util
 					case "+":
 						stack.Push(stack.Pop() + stack.Pop());
 						break;
+
 					case "-":
 						if (stack.Count == 1)
 							stack.Push(-stack.Pop());
 						else
 							stack.Push(-stack.Pop() + stack.Pop());
 						break;
+
 					case "*":
 						stack.Push(stack.Pop() * stack.Pop());
 						break;
+
 					case "/":
 						{
 							double tmp = stack.Pop();
 							stack.Push(stack.Pop() / tmp);
 							break;
 						}
+
 					case "^":
 						{
 							double tmp = stack.Pop();
@@ -290,10 +271,18 @@ namespace Util
 			return Math.Sign(x) * (1 - tau);
 		}
 
-		public static PolishNotation Derivate(string input, bool der = true)
+		public static PolishNotation Derivate(string input)
 		{
-			if (input == "")
+			return Derivate(input, true);
+		}
+
+		private static PolishNotation Derivate(string input, bool der = true)
+		{
+			if ((input = input.Trim()) == "")
 				return new PolishNotation("");
+
+			//if (!der)
+			//    return new PolishNotation(input);
 
 			Stack<string> stack = new Stack<string>();
 			string[] symbols;
@@ -301,7 +290,7 @@ namespace Util
 			//if (init)
 			//	symbols = input.Trim().Split(' ').Reverse().ToArray();
 			//else
-			symbols = input.Trim().Split(' ').ToArray();
+			symbols = input.Split(' ').ToArray();
 
 
 			string r = "", l = "", r_orig = "", l_orig = "";
@@ -313,6 +302,15 @@ namespace Util
 
 			switch (symbols[symbols.Length - 1])
 			{
+				// SYMBOLICS
+				case "x":
+					if (!der)
+						return new PolishNotation("x ");
+					return new PolishNotation("1 ");
+
+				case "":
+					return new PolishNotation("");
+
 				// OPERATORS
 				case "+":
 					l = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
@@ -328,7 +326,7 @@ namespace Util
 
 					l = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
 
-					// prepare ur self
+					// prepare yourself
 					#region OPTIMIZATIONS
 					if (l == "1 ")
 						if (r_orig == "1 ")
@@ -339,41 +337,41 @@ namespace Util
 									return new PolishNotation("1 " + l_orig + "+ ");
 							else
 								if (l_orig == "1 ")
-									return new PolishNotation("1 " + r + "+ ");
-								else
-									return new PolishNotation("1 " + r + l_orig + "* + ");
+								return new PolishNotation("1 " + r + "+ ");
+							else
+								return new PolishNotation("1 " + r + l_orig + "* + ");
 						else
 							if (r == "1 ")
-								if (l_orig == "1 ")
-									return new PolishNotation(r_orig + "1 + ");
-								else
-									return new PolishNotation(r_orig + l_orig + "+ ");
+							if (l_orig == "1 ")
+								return new PolishNotation(r_orig + "1 + ");
 							else
+								return new PolishNotation(r_orig + l_orig + "+ ");
+						else
 								if (l_orig == "1 ")
-									return new PolishNotation(r_orig + r + "+ ");
-								else
-									return new PolishNotation(r_orig + r + l_orig + "* + ");
+							return new PolishNotation(r_orig + r + "+ ");
+						else
+							return new PolishNotation(r_orig + r + l_orig + "* + ");
 					else
 						if (r_orig == "1 ")
-							if (r == "1 ")
-								if (l_orig == "1 ")
-									return new PolishNotation(l + "1 + ");
-								else
-									return new PolishNotation(l + l_orig + "+ ");
+						if (r == "1 ")
+							if (l_orig == "1 ")
+								return new PolishNotation(l + "1 + ");
 							else
-								if (l_orig == "1 ")
-									return new PolishNotation(l + r + "+ ");
-								else
-									return new PolishNotation(l + r + l_orig + "* + ");
+								return new PolishNotation(l + l_orig + "+ ");
 						else
+							if (l_orig == "1 ")
+							return new PolishNotation(l + r + "+ ");
+						else
+							return new PolishNotation(l + r + l_orig + "* + ");
+					else
 							if (r == "1 ")
+						if (l_orig == "1 ")
+							return new PolishNotation(l + r_orig + "* " + "1 + ");
+						else
+							return new PolishNotation(l + r_orig + "* " + l_orig + "+ ");
+					else
 								if (l_orig == "1 ")
-									return new PolishNotation(l + r_orig + "* " + "1 + ");
-								else
-									return new PolishNotation(l + r_orig + "* " + l_orig + "+ ");
-							else
-								if (l_orig == "1 ")
-									return new PolishNotation(l + r_orig + "* " + r + "+ ");
+						return new PolishNotation(l + r_orig + "* " + r + "+ ");
 					#endregion
 
 					if (l != "0 " && r_orig != "0 ")
@@ -401,10 +399,26 @@ namespace Util
 
 						double tmp = 0;
 						l = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
+
 						if (double.TryParse(r_orig, out tmp) || IsNumeric(r_orig))
-							return new PolishNotation(l + r_orig + l_orig + r_orig + "1 - ^ * * ");
+							if (l == "1 ")
+							{
+								if (tmp == 2)
+									return new PolishNotation(r_orig + l_orig + "* ");
+								else
+									return new PolishNotation(r_orig + l_orig + (tmp - 1) + " ^ * ");
+							}
+							else
+							{
+								if (tmp == 2)
+									return new PolishNotation(l + r_orig + l_orig + "* * ");
+								else
+									return new PolishNotation(l + r_orig + l_orig + (tmp - 1) + " ^ * * ");
+							}
+
 						if (l_orig == "1 ")
 							return new PolishNotation(r_orig + l + "* ");
+
 						return new PolishNotation(l_orig + r_orig + "1 - ^ " + r_orig + l + "* " + l_orig + l_orig + "log * " + r + "* + * ");
 					}
 
@@ -453,15 +467,6 @@ namespace Util
 					if (!der)
 						return new PolishNotation(r + "arcsin ");
 					return new PolishNotation("0 " + r + "1 " + r_orig + "2 ^ - sqrt / - ");
-
-				// SYMBOLICS
-				case "x":
-					if (!der)
-						return new PolishNotation("x ");
-					return new PolishNotation("1 ");
-
-				case "":
-					return new PolishNotation("");
 
 				// NUMBERS
 				default:
