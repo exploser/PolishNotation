@@ -485,20 +485,5 @@ namespace Util
 			return contents;
 		}
 
-		public PointF[] Plot(double left, double right, double epsilon = 0.1)
-		{
-			int count = (int)Math.Round((right - left) / epsilon, 0, MidpointRounding.AwayFromZero);
-
-			PointF[] result = new PointF[count + 1];
-
-			for (int i = 0; i <= count; i++)
-			{
-				result[i].X = (float)(left + i * epsilon);
-				result[i].Y = (float)Eval(left + i * epsilon);
-			}
-
-			return result;
-		}
-
 	}
 }
