@@ -62,8 +62,10 @@ namespace Util
 
 			for (int i = 0; i < input.Length; i++)
 			{
-				if (operators.Any(o => o == input[i]))
+				if (operators.Contains(input[i]))
 				{
+					//string last = stack.Peek();
+
 					if (buf.Length > 0)
 					{
 						sb.Append(buf + " ");
@@ -72,19 +74,18 @@ namespace Util
 					if (input[i] == '+' || input[i] == '-')
 					{
 						while (stack.Count > 0 && (stack.Peek() == "+" || stack.Peek() == "-" || stack.Peek() == "*" || stack.Peek() == "/"
-							|| stack.Peek() == "^" || functions.Any(o => o == stack.Peek())))
+							|| stack.Peek() == "^" || functions.Contains(stack.Peek())))
 							sb.Append(stack.Pop() + " ");
 					}
-					if (input[i] == '*' || input[i] == '/')
+					else if (input[i] == '*' || input[i] == '/')
 					{
 						while (stack.Count > 0 && (stack.Peek() == "*" || stack.Peek() == "/" || stack.Peek() == "^" ||
-							functions.Any(o => o == stack.Peek())))
+							functions.Contains(stack.Peek())))
 							sb.Append(stack.Pop() + " ");
 					}
-
-					if (input[i] == '^')
+					else if (input[i] == '^')
 					{
-						while (stack.Count > 0 && functions.Any(o => o == stack.Peek()))
+						while (stack.Count > 0 && functions.Contains(stack.Peek()))
 							sb.Append(stack.Pop() + " ");
 					}
 
@@ -94,13 +95,18 @@ namespace Util
 						{
 							sb.Append(stack.Pop() + " ");
 						}
-						stack.Pop();
+
+						if (functions.Contains(stack.Peek()))
+							sb.Append(stack.Pop() + " ");
+						else
+							stack.Pop();
 					}
 					else
 						stack.Push(input[i].ToString());
 
 				}
-				else if (functions_reverse.Any(o => // some cruel lambda shit
+				// TODO: optimize this
+				else if (functions_reverse.Any(o => // some cruel lambda stuff
 				{
 					try
 					{
@@ -147,6 +153,19 @@ namespace Util
 		public PolishNotation(string input)
 		{
 			contents = input;
+		}
+
+		public bool Validate()
+		{
+			try
+			{
+				Eval(0);
+				return true;
+			}
+			catch
+			{
+				return false;
+			}
 		}
 
 		public double Eval(double x = 0, double y = 0, double z = 0)
