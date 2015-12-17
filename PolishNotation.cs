@@ -16,22 +16,28 @@
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/*
+ * Please do not use Derivative() more than once. In fact, avoid using it unless really needed,
+ * as it is somewhat slow and stupid (yet functioning).
+ */
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.ComponentModel;
 
 namespace Util
 {
-	class PolishNotation
+	public class PolishNotation : Component
 	{
 		private static char[] operators = { '+', '-', '*', '/', '^', '(', ')' };
-		private static string[] functions = { "sin", "cos", "exp", "abs", "log", "sgn", "erf", "sqrt", "sinh", "cosh", "arcsin", "arccos" };
-		private string contents = "";
-		public string analytic = "";
-		private uint calcs = 0;
+		/* functions in which identical starting substrings exist should be put in order of increasing length in `functions` and reversely in `functions_reverse` */
+		private static string[] functions = new string[] { "sin", "cos", "exp", "abs", "log", "sgn", "erf", "sqrt", "sinh", "cosh", "arcsin", "arccos" };
+		private static string[] functions_reverse = new string[] { "arccos", "arcsin", "cosh", "sinh", "sqrt", "erf", "sgn", "log", "abs", "exp", "cos", "sin" };
 
-		int variables = 0;
+		private string contents = "";
+		private uint calcs = 0;
 
 		public uint CalculationsMade
 		{
@@ -41,6 +47,11 @@ namespace Util
 			}
 		}
 
+		/// <summary>
+		/// Converts plaintext to Polish notation
+		/// </summary>
+		/// <param name="input">Input string in form of simple math expression, e.g. `sin(e^-x)`</param>
+		/// <returns></returns>
 		public static PolishNotation FromEquation(string input)
 		{
 			input = input.Trim().Replace(" ", "");
@@ -51,7 +62,6 @@ namespace Util
 
 			for (int i = 0; i < input.Length; i++)
 			{
-				#region operands
 				if (operators.Any(o => o == input[i]))
 				{
 					if (buf.Length > 0)
@@ -90,32 +100,28 @@ namespace Util
 						stack.Push(input[i].ToString());
 
 				}
-				#endregion
-
-				#region functions
-				else if (functions.Reverse().Any(o => // some cruel lambda shit
+				else if (functions_reverse.Any(o => // some cruel lambda shit
 				{
-						try
+					try
+					{
+						if (o == input.Substring(i, o.Length))
 						{
-							if (o == input.Substring(i, o.Length))
-							{
-								function_buffer = o;
-								return true;
-							}
-							else
-								return false;
+							function_buffer = o;
+							return true;
 						}
-						catch
-						{
+						else
 							return false;
-						}
 					}
+					catch
+					{
+						return false;
+					}
+				}
 					) && i < input.Length - function_buffer.Length)
 				{
 					stack.Push(function_buffer);
 					i += function_buffer.Length - 1;
 				}
-				#endregion
 
 				else
 				{
@@ -182,6 +188,25 @@ namespace Util
 							break;
 						}
 
+					// SYMBOLICS
+					case "x":
+						stack.Push(x);
+						break;
+					case "y":
+						stack.Push(y);
+						break;
+					case "z":
+						stack.Push(z);
+						break;
+					case "e":
+						stack.Push(Math.E);
+						break;
+					case "pi":
+						stack.Push(Math.PI);
+						break;
+					case "":
+						break;
+
 					// FUNCTIONS
 					case "arcsin":
 						stack.Push(Math.Asin(stack.Pop()));
@@ -219,24 +244,6 @@ namespace Util
 					case "erf":
 						stack.Push(Erf(stack.Pop()));
 						break;
-					// SYMBOLICS
-					case "x":
-						stack.Push(x);
-						break;
-					case "y":
-						stack.Push(y);
-						break;
-					case "z":
-						stack.Push(z);
-						break;
-					case "e":
-						stack.Push(Math.E);
-						break;
-					case "pi":
-						stack.Push(Math.PI);
-						break;
-					case "":
-						break;
 
 					// NUMBERS
 					default:
@@ -258,47 +265,45 @@ namespace Util
 
 		private double Erfc(double x)
 		{
-			double tau = Erf(x);
-			return 1 - tau;
+			return 1.0 - Erf(x);
 		}
 
 		private double Erf(double x)
 		{
-			double t = 1.0f / (1 + 0.5 * Math.Abs(x));
+			double t = 1.0 / (1.0 + 0.5 * Math.Abs(x));
 			double tau = t * Math.Exp(-x * x - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 + t * (-0.18628806 +
 				t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * (0.17087277))))))))));
 
-			return Math.Sign(x) * (1 - tau);
+			return Math.Sign(x) * (1.0 - tau);
 		}
 
-		public static PolishNotation Derivate(string input)
+		/// <summary>
+		/// Computes an analytic derivative from Polish notation in form of Polish notation.
+		/// </summary>
+		/// <param name="input">Input function</param>
+		/// <returns>Derivative of input</returns>
+		public static PolishNotation Derivative(PolishNotation input)
 		{
-			return Derivate(input, true);
+			return Derivative(input.ToString(), true);
 		}
 
-		private static PolishNotation Derivate(string input, bool der = true)
+		private static PolishNotation Derivative(string input, bool der = true)
 		{
 			if ((input = input.Trim()) == "")
 				return new PolishNotation("");
 
-			//if (!der)
-			//    return new PolishNotation(input);
-
 			Stack<string> stack = new Stack<string>();
 			string[] symbols;
 
-			//if (init)
-			//	symbols = input.Trim().Split(' ').Reverse().ToArray();
-			//else
 			symbols = input.Split(' ').ToArray();
 
 
 			string r = "", l = "", r_orig = "", l_orig = "";
 			int r_olength = 0;
 
-			r = Derivate(string.Join(" ", symbols.Take(symbols.Length - 1)), der).ToString();
-			r_orig = Derivate(string.Join(" ", symbols.Take(symbols.Length - 1)), false).ToString();
-			r_olength = r_orig.Trim().Split(' ').Count(); // this is so genial
+			r = Derivative(string.Join(" ", symbols.Take(symbols.Length - 1)), der).ToString();
+			r_orig = Derivative(string.Join(" ", symbols.Take(symbols.Length - 1)), false).ToString();
+			r_olength = r_orig.Trim().Split(' ').Count();
 
 			switch (symbols[symbols.Length - 1])
 			{
@@ -313,92 +318,108 @@ namespace Util
 
 				// OPERATORS
 				case "+":
-					l = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
-					return new PolishNotation(l + r + "+ ");
+					{
+						l = Derivative(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
+						if (l == "0 " && r == "0 ")
+							return new PolishNotation("0 ");
+						if (l == "0 ")
+							return new PolishNotation(r);
+						if (r == "0 ")
+							return new PolishNotation(l);
+						double tmp_l, tmp_r;
+						if (double.TryParse(l, out tmp_l) && double.TryParse(r, out tmp_r))
+							return new PolishNotation(tmp_l + tmp_r + " ");
+						return new PolishNotation(l + r + "+ ");
+					}
 				case "-":
-					l = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
+					l = Derivative(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
+					if (l == "0 " && r == "0 ")
+						return new PolishNotation("0 ");
+					if (r == "0 ")
+						return new PolishNotation(l);
 					return new PolishNotation(l + r + "- ");
 				case "*":
-					l_orig = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), false).ToString();
+					{
+						l_orig = Derivative(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), false).ToString();
 
-					if (!der) // if no derivation is required, return is unchanged
-						return new PolishNotation(l_orig + r + "* ");
+						if (!der) // if no derivation is required, return is unchanged
+							return new PolishNotation(l_orig + r + "* ");
 
-					l = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
+						l = Derivative(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
 
-					// prepare yourself
-					#region OPTIMIZATIONS
-					if (l == "1 ")
-						if (r_orig == "1 ")
-							if (r == "1 ")
-								if (l_orig == "1 ")
-									return new PolishNotation("2 ");
+						#region optimizations
+						// prepare yourself
+						if (l == "1 ")
+							if (r_orig == "1 ")
+								if (r == "1 ")
+									if (l_orig == "1 ")
+										return new PolishNotation("2 ");
+									else
+										return new PolishNotation("1 " + l_orig + "+ ");
 								else
-									return new PolishNotation("1 " + l_orig + "+ ");
+									if (l_orig == "1 ")
+									return new PolishNotation("1 " + r + "+ ");
+								else
+									return new PolishNotation("1 " + r + l_orig + "* + ");
 							else
+								if (r == "1 ")
 								if (l_orig == "1 ")
-								return new PolishNotation("1 " + r + "+ ");
+									return new PolishNotation(r_orig + "1 + ");
+								else
+									return new PolishNotation(r_orig + l_orig + "+ ");
 							else
-								return new PolishNotation("1 " + r + l_orig + "* + ");
+									if (l_orig == "1 ")
+								return new PolishNotation(r_orig + r + "+ ");
+							else
+								return new PolishNotation(r_orig + r + l_orig + "* + ");
 						else
+							if (r_orig == "1 ")
 							if (r == "1 ")
-							if (l_orig == "1 ")
-								return new PolishNotation(r_orig + "1 + ");
-							else
-								return new PolishNotation(r_orig + l_orig + "+ ");
-						else
 								if (l_orig == "1 ")
-							return new PolishNotation(r_orig + r + "+ ");
-						else
-							return new PolishNotation(r_orig + r + l_orig + "* + ");
-					else
-						if (r_orig == "1 ")
-						if (r == "1 ")
-							if (l_orig == "1 ")
-								return new PolishNotation(l + "1 + ");
+									return new PolishNotation(l + "1 + ");
+								else
+									return new PolishNotation(l + l_orig + "+ ");
 							else
-								return new PolishNotation(l + l_orig + "+ ");
-						else
-							if (l_orig == "1 ")
-							return new PolishNotation(l + r + "+ ");
-						else
-							return new PolishNotation(l + r + l_orig + "* + ");
-					else
-							if (r == "1 ")
-						if (l_orig == "1 ")
-							return new PolishNotation(l + r_orig + "* " + "1 + ");
-						else
-							return new PolishNotation(l + r_orig + "* " + l_orig + "+ ");
-					else
 								if (l_orig == "1 ")
-						return new PolishNotation(l + r_orig + "* " + r + "+ ");
-					#endregion
-
-					if (l != "0 " && r_orig != "0 ")
-						if (r != "0 " && l_orig != "0 ")
-							return new PolishNotation(l + r_orig + "* " + r + l_orig + "* + ");
+								return new PolishNotation(l + r + "+ ");
+							else
+								return new PolishNotation(l + r + l_orig + "* + ");
 						else
-							return new PolishNotation(l + r_orig + "* ");
-					else if (r != "0 " && l_orig != "0 ")
-						return new PolishNotation(r + l_orig + "* ");
-					else
-						return new PolishNotation("0 ");
+								if (r == "1 ")
+							if (l_orig == "1 ")
+								return new PolishNotation(l + r_orig + "* " + "1 + ");
+							else
+								return new PolishNotation(l + r_orig + "* " + l_orig + "+ ");
+						else
+									if (l_orig == "1 ")
+							return new PolishNotation(l + r_orig + "* " + r + "+ ");
 
+						if (l != "0 " && r_orig != "0 ")
+							if (r != "0 " && l_orig != "0 ")
+								return new PolishNotation(l + r_orig + "* " + r + l_orig + "* + ");
+							else
+								return new PolishNotation(l + r_orig + "* ");
+						else if (r != "0 " && l_orig != "0 ")
+							return new PolishNotation(r + l_orig + "* ");
+						else
+							return new PolishNotation("0 ");
+						#endregion
+					}
 				case "/":
 					{
-						l_orig = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), false).ToString();
-						l = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
+						l_orig = Derivative(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), false).ToString();
+						l = Derivative(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
 						return new PolishNotation(l + r_orig + "* " + r + l_orig + "* - " + r_orig + "2 ^ / "); // more optimizations coming
 					}
 				case "^":
 					{
-						l_orig = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), false).ToString();
+						l_orig = Derivative(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), false).ToString();
 
 						if (!der)
 							return new PolishNotation(l_orig + r + "^ ");
 
 						double tmp = 0;
-						l = Derivate(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
+						l = Derivative(string.Join(" ", symbols.Take(symbols.Length - r_olength - 1)), der).ToString();
 
 						if (double.TryParse(r_orig, out tmp) || IsNumeric(r_orig))
 							if (l == "1 ")
