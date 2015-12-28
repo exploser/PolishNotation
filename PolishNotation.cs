@@ -27,9 +27,9 @@ using System.Linq;
 using System.Text;
 using System.ComponentModel;
 
-namespace Util
+namespace PolishNotation
 {
-	public class PolishNotation : Component
+	public class PolishNotation
 	{
 		private static char[] operators = { '+', '-', '*', '/', '^', '(', ')' };
 		/* functions in which identical starting substrings exist should be put in order of increasing length in `functions` and reversely in `functions_reverse` */
